@@ -145,7 +145,7 @@
     <div class="hero">
       <h2>Engagement rate</h2>
       <div class="big" id="hero-ctr">—</div>
-      <div class="sub-stat" id="hero-ctr-sub">clicks / impressions</div>
+      <div class="sub-stat" id="hero-ctr-sub">engagements / impressions</div>
     </div>
   </div>
 
@@ -174,7 +174,7 @@
     <table id="campaign-table">
       <thead><tr>
         <th>Platform</th><th>Region</th><th>Pillar</th><th>Campaign</th>
-        <th class="num">Spend</th><th class="num">Impr</th><th class="num">Clicks</th><th class="num">CTR</th>
+        <th class="num">Spend</th><th class="num">Impr</th><th class="num">Engagements</th><th class="num">Eng Rate</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -239,12 +239,13 @@ function aggregate(rows) {
       byCampaign[ck] = {
         platform: r.platform, campaign_name: r.campaign_name,
         region: r.region, pillar: r.pillar,
-        spend_usd: 0, impressions: 0, clicks: 0,
+        spend_usd: 0, impressions: 0, clicks: 0, engagements: 0,
       };
     }
     byCampaign[ck].spend_usd += s;
     byCampaign[ck].impressions += r.impressions || 0;
     byCampaign[ck].clicks += r.clicks || 0;
+    byCampaign[ck].engagements += r.engagements || 0;
   }
   return { total, byPlatform, byRegion, byPillar, byMonth, byCampaign };
 }
@@ -302,7 +303,10 @@ function renderCampaignTable(byCampaign) {
     return;
   }
   tbody.innerHTML = top.map(c => {
-    const ctr = c.impressions ? (c.clicks / c.impressions * 100) : 0;
+    const eng = c.engagements || 0;
+    const engRate = c.impressions ? (eng / c.impressions * 100) : 0;
+    const engCell = eng > 0 ? eng.toLocaleString() : '<span style="color:#9ca3af">—</span>';
+    const rateCell = eng > 0 ? engRate.toFixed(2) + '%' : '<span style="color:#9ca3af">—</span>';
     return `<tr>
       <td><span class="pill" style="color:${platformColor(c.platform)}">●</span> ${c.platform}</td>
       <td><span class="tag">${c.region}</span></td>
@@ -310,8 +314,8 @@ function renderCampaignTable(byCampaign) {
       <td class="campaign">${c.campaign_name || '(no name)'}</td>
       <td class="num">${fmtUsdFull(c.spend_usd)}</td>
       <td class="num">${c.impressions.toLocaleString()}</td>
-      <td class="num">${c.clicks.toLocaleString()}</td>
-      <td class="num">${ctr.toFixed(2)}%</td>
+      <td class="num">${engCell}</td>
+      <td class="num">${rateCell}</td>
     </tr>`;
   }).join('');
 }
@@ -327,11 +331,14 @@ function render() {
   document.getElementById('row-count').textContent = filtered.length;
   document.getElementById('hero-total').textContent = fmtUsdFull(agg.total);
   document.getElementById('hero-period').textContent = state.period === 'YTD' ? ('YTD ' + META.year) : state.period;
-  // Aggregate impressions + clicks for hero metrics
-  let totImpr = 0, totClicks = 0;
+  // Aggregate impressions + engagements for hero metrics
+  let totImpr = 0, totEng = 0, totEngImpr = 0;
   for (const r of filtered) {
     totImpr += r.impressions || 0;
-    totClicks += r.clicks || 0;
+    if (r.engagements != null) {
+      totEng += r.engagements || 0;
+      totEngImpr += r.impressions || 0;  // denominator = impressions only from rows where engagements are tracked
+    }
   }
   // Total impressions
   document.getElementById('hero-impr').textContent = totImpr > 0
@@ -341,13 +348,14 @@ function render() {
     ? `${Object.keys(agg.byCampaign).length} campaigns delivered`
     : 'no impression data';
 
-  // CPM = (spend / impressions) × 1000. Engagement rate (CTR) = clicks / impressions × 100.
+  // CPM = (spend / impressions) × 1000.
+  // Engagement rate = engagements / impressions × 100 (LinkedIn-only; Google/Meta/TT engagements not tracked yet).
   const cpm = totImpr > 0 ? (agg.total / totImpr * 1000) : 0;
-  const ctr = totImpr > 0 ? (totClicks / totImpr * 100) : 0;
+  const engRate = totEngImpr > 0 ? (totEng / totEngImpr * 100) : 0;
   document.getElementById('hero-cpm').textContent = totImpr > 0 ? ('$' + cpm.toFixed(2)) : '—';
   document.getElementById('hero-cpm-sub').textContent = totImpr > 0 ? 'cost per 1,000 impressions' : 'no impression data';
-  document.getElementById('hero-ctr').textContent = totImpr > 0 ? (ctr.toFixed(2) + '%') : '—';
-  document.getElementById('hero-ctr-sub').textContent = totImpr > 0 ? `${totClicks.toLocaleString()} clicks` : 'no engagement data';
+  document.getElementById('hero-ctr').textContent = totEng > 0 ? (engRate.toFixed(2) + '%') : '—';
+  document.getElementById('hero-ctr-sub').textContent = totEng > 0 ? `${totEng.toLocaleString()} engagements` : 'no engagement data (LinkedIn only currently)';
 
   renderSplit('split-platform', agg.byPlatform, agg.total);
   renderSplit('split-region', agg.byRegion, agg.total);
