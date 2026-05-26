@@ -67,6 +67,12 @@
 
   /* Splits row */
   .splits-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .split-header { display: flex; align-items: center; gap: 14px; margin: 4px 0 12px; }
+  .split-h-label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
+  .split-toggle { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 6px; padding: 2px; }
+  .split-tog { background: transparent; border: 0; padding: 5px 12px; font-size: 12px; cursor: pointer; color: #555; border-radius: 4px; font-family: inherit; }
+  .split-tog.active { background: #111; color: #fff; }
+  .split-tog:hover:not(.active) { background: #f5f5f5; }
   .split-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
   .split-label { min-width: 110px; }
   .split-track { flex: 1; height: 14px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
@@ -149,6 +155,13 @@
     <div class="month-grid" id="month-grid"></div>
   </div>
 
+  <div class="split-header">
+    <span class="split-h-label">Splits</span>
+    <div class="split-toggle" role="tablist">
+      <button class="split-tog active" data-mode="imp">Impressions</button>
+      <button class="split-tog" data-mode="spend">Spend</button>
+    </div>
+  </div>
   <div class="splits-row">
     <div class="card">
       <h2>Split by platform</h2>
@@ -187,6 +200,7 @@ const state = {
   platforms: new Set(),
   regions: new Set(),
   pillars: new Set(),
+  splitMode: 'imp',    // 'imp' (default) or 'spend'
 };
 
 function fmtUsd(n) {
@@ -221,13 +235,18 @@ function applyFiltersExceptPeriod() {
 
 function aggregate(rows) {
   const byPlatform = {}, byRegion = {}, byPillar = {}, byMonth = {}, byCampaign = {};
-  let total = 0;
+  const byPlatformImp = {}, byRegionImp = {}, byPillarImp = {};
+  let total = 0, totalImp = 0;
   for (const r of rows) {
     const s = r.spend_usd || 0;
-    total += s;
+    const imp = r.impressions || 0;
+    total += s; totalImp += imp;
     byPlatform[r.platform] = (byPlatform[r.platform] || 0) + s;
     byRegion[r.region] = (byRegion[r.region] || 0) + s;
     byPillar[r.pillar] = (byPillar[r.pillar] || 0) + s;
+    byPlatformImp[r.platform] = (byPlatformImp[r.platform] || 0) + imp;
+    byRegionImp[r.region] = (byRegionImp[r.region] || 0) + imp;
+    byPillarImp[r.pillar] = (byPillarImp[r.pillar] || 0) + imp;
     byMonth[r.month] = (byMonth[r.month] || 0) + s;
     const ck = r.platform + '|' + r.campaign_name;
     if (!byCampaign[ck]) {
@@ -238,14 +257,16 @@ function aggregate(rows) {
       };
     }
     byCampaign[ck].spend_usd += s;
-    byCampaign[ck].impressions += r.impressions || 0;
+    byCampaign[ck].impressions += imp;
   }
-  return { total, byPlatform, byRegion, byPillar, byMonth, byCampaign };
+  return { total, totalImp, byPlatform, byRegion, byPillar, byPlatformImp, byRegionImp, byPillarImp, byMonth, byCampaign };
 }
 
-function renderSplit(elId, agg, total) {
+function renderSplit(elId, agg, total, mode) {
+  // mode: 'imp' or 'spend'
   const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 8);
   const max = sorted.length ? sorted[0][1] : 1;
+  const fmtVal = (v) => mode === 'imp' ? (v >= 1000 ? Math.round(v).toLocaleString() : Math.round(v).toString()) : fmtUsdFull(v);
   const html = sorted.map(([label, v]) => {
     const pct = total ? Math.round(v/total*100) : 0;
     const width = max ? Math.round(v/max*100) : 0;
@@ -253,7 +274,7 @@ function renderSplit(elId, agg, total) {
     return `<div class="split-bar">
       <span class="split-label">${label}</span>
       <div class="split-track"><div class="split-fill ${platformClass}" style="width:${width}%"></div></div>
-      <span class="split-val">${fmtUsdFull(v)} · ${pct}%</span>
+      <span class="split-val">${fmtVal(v)} · ${pct}%</span>
     </div>`;
   }).join('');
   document.getElementById(elId).innerHTML = html || '<div class="empty">No data in this filter</div>';
@@ -337,9 +358,15 @@ function render() {
   document.getElementById('hero-cpm-sub').textContent = totImpr > 0 ? 'cost per 1,000 impressions' : 'no impression data';
 
 
-  renderSplit('split-platform', agg.byPlatform, agg.total);
-  renderSplit('split-region', agg.byRegion, agg.total);
-  renderSplit('split-pillar', agg.byPillar, agg.total);
+  // Splits respect current toggle mode (default: 'imp')
+  const splitMode = state.splitMode || 'imp';
+  const platAgg = splitMode === 'imp' ? agg.byPlatformImp : agg.byPlatform;
+  const regAgg  = splitMode === 'imp' ? agg.byRegionImp   : agg.byRegion;
+  const pilAgg  = splitMode === 'imp' ? agg.byPillarImp   : agg.byPillar;
+  const splitTotal = splitMode === 'imp' ? agg.totalImp : agg.total;
+  renderSplit('split-platform', platAgg, splitTotal, splitMode);
+  renderSplit('split-region',  regAgg, splitTotal, splitMode);
+  renderSplit('split-pillar',  pilAgg, splitTotal, splitMode);
 
   // Monthly grid: always show ALL months (ignore period filter) so user can
   // see context and switch between months. Other panels stay filtered.
@@ -406,6 +433,15 @@ function setupChips() {
     state.regions.clear();
     state.pillars.clear();
     render();
+  });
+
+  // Split mode toggle (Impressions ↔ Spend)
+  document.querySelectorAll('.split-tog').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.splitMode = btn.dataset.mode;
+      document.querySelectorAll('.split-tog').forEach(b => b.classList.toggle('active', b === btn));
+      render();
+    });
   });
 }
 
