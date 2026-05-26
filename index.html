@@ -35,7 +35,7 @@
                cursor: pointer; color: #6b7280; }
 
   /* Hero stats */
-  .hero-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .hero-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
   .hero { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
   .hero h2 { font-size: 11px; font-weight: 600; text-transform: uppercase;
              letter-spacing: 0.06em; color: #6b7280; margin-bottom: 10px; }
@@ -141,11 +141,6 @@
       <h2>CPM</h2>
       <div class="big" id="hero-cpm">—</div>
       <div class="sub-stat" id="hero-cpm-sub">cost per 1,000 impressions</div>
-    </div>
-    <div class="hero">
-      <h2>Top campaign</h2>
-      <div class="big" id="hero-top-camp">—</div>
-      <div class="sub-stat" id="hero-top-camp-sub">by spend in current filter</div>
     </div>
   </div>
 
@@ -341,20 +336,6 @@ function render() {
   document.getElementById('hero-cpm').textContent = totImpr > 0 ? ('$' + cpm.toFixed(2)) : '—';
   document.getElementById('hero-cpm-sub').textContent = totImpr > 0 ? 'cost per 1,000 impressions' : 'no impression data';
 
-  // Top campaign by spend (current filter)
-  const camps = Object.values(agg.byCampaign).filter(c => c.spend_usd > 0)
-                                              .sort((a,b) => b.spend_usd - a.spend_usd);
-  if (camps.length) {
-    const top = camps[0];
-    document.getElementById('hero-top-camp').textContent = fmtUsdFull(top.spend_usd);
-    const shortName = (top.campaign_name || '(no name)').length > 38
-        ? (top.campaign_name || '').slice(0, 36) + '…'
-        : (top.campaign_name || '(no name)');
-    document.getElementById('hero-top-camp-sub').textContent = shortName;
-  } else {
-    document.getElementById('hero-top-camp').textContent = '—';
-    document.getElementById('hero-top-camp-sub').textContent = 'by spend in current filter';
-  }
 
   renderSplit('split-platform', agg.byPlatform, agg.total);
   renderSplit('split-region', agg.byRegion, agg.total);
