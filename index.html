@@ -142,6 +142,11 @@
       <div class="big" id="hero-cpm">—</div>
       <div class="sub-stat" id="hero-cpm-sub">cost per 1,000 impressions</div>
     </div>
+    <div class="hero">
+      <h2>Top campaign</h2>
+      <div class="big" id="hero-top-camp">—</div>
+      <div class="sub-stat" id="hero-top-camp-sub">by spend in current filter</div>
+    </div>
   </div>
 
   <div class="card">
@@ -335,6 +340,21 @@ function render() {
   const cpm = totImpr > 0 ? (agg.total / totImpr * 1000) : 0;
   document.getElementById('hero-cpm').textContent = totImpr > 0 ? ('$' + cpm.toFixed(2)) : '—';
   document.getElementById('hero-cpm-sub').textContent = totImpr > 0 ? 'cost per 1,000 impressions' : 'no impression data';
+
+  // Top campaign by spend (current filter)
+  const camps = Object.values(agg.byCampaign).filter(c => c.spend_usd > 0)
+                                              .sort((a,b) => b.spend_usd - a.spend_usd);
+  if (camps.length) {
+    const top = camps[0];
+    document.getElementById('hero-top-camp').textContent = fmtUsdFull(top.spend_usd);
+    const shortName = (top.campaign_name || '(no name)').length > 38
+        ? (top.campaign_name || '').slice(0, 36) + '…'
+        : (top.campaign_name || '(no name)');
+    document.getElementById('hero-top-camp-sub').textContent = shortName;
+  } else {
+    document.getElementById('hero-top-camp').textContent = '—';
+    document.getElementById('hero-top-camp-sub').textContent = 'by spend in current filter';
+  }
 
   renderSplit('split-platform', agg.byPlatform, agg.total);
   renderSplit('split-region', agg.byRegion, agg.total);
